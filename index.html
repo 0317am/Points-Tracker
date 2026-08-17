@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Points Tracker</title>
+<style>
+  :root{
+    --bg: #0a0f0c;
+    --panel: #111a15;
+    --panel-2: #16211b;
+    --line: #24352c;
+    --green: #35d47a;
+    --green-dim: #1f8a52;
+    --text: #e7f3ec;
+    --text-dim: #8aa397;
+    --amber: #e0a94a;
+    --danger: #d9584f;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  html, body{
+    margin:0;
+    min-height:100vh;
+  }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:40px;
+    max-width:480px;
+    margin:0 auto;
+  }
+  .sync-gate{
+    position:fixed;
+    inset:0;
+    background:var(--bg);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:200;
+    padding:20px;
+  }
+  .sync-gate.hidden{display:none;}
+  .sync-gate-box{
+    max-width:340px;
+    width:100%;
+  }
+  .sync-gate-box h2{
+    font-size:20px;
+    margin-bottom:6px;
+  }
+  .sync-gate-box h2 span{color:var(--green);}
+  .sync-gate-box p{
+    font-size:12.5px;
+    color:var(--text-dim);
+    line-height:1.5;
+    margin-bottom:16px;
+  }
+  .sync-gate-box input{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:9px;
+    padding:12px;
+    font-size:14px;
+    font-family:var(--mono);
+    margin-bottom:12px;
+  }
+  .sync-gate-box button{
+    width:100%;
+    background:var(--green-dim);
+    color:#eafff2;
+    border:none;
+    border-radius:9px;
+    padding:12px;
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .sync-gate-status{
+    margin-top:10px;
+    font-size:12px;
+    color:var(--text-dim);
+    text-align:center;
+    min-height:16px;
+  }
+  .sync-footer{
+    text-align:center;
+    font-size:11px;
+    color:var(--text-dim);
+    padding:16px;
+    cursor:pointer;
+  }
+  header{
+    padding:20px 16px 14px;
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:5;
+    background:rgba(10,15,12,0.96);
+    backdrop-filter:blur(6px);
+  }
+  header h1{
+    margin:0 0 2px;
+    font-size:20px;
+    letter-spacing:0.2px;
+  }
+  header h1 span{color:var(--green);}
+  header p{margin:0; color:var(--text-dim); font-size:12.5px;}
+
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:8px;
+    padding:14px 16px 0;
+  }
+  .stat{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .stat .num{font-family:var(--mono); font-size:18px; color:var(--green); font-weight:600;}
+  .stat .lbl{font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.6px; margin-top:2px;}
+  .earnings-note{
+    font-size:11px;
+    color:var(--text-dim);
+    text-align:center;
+    padding:6px 16px 0;
+  }
+  .app-toast{
+    position:fixed;
+    left:50%;
+    bottom:16px;
+    transform:translateX(-50%) translateY(20px);
+    background:var(--panel);
+    border:1px solid var(--green-dim);
+    color:var(--text);
+    font-size:12px;
+    padding:10px 14px;
+    border-radius:9px;
+    max-width:88%;
+    text-align:center;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 200ms ease, transform 200ms ease;
+    z-index:100;
+  }
+  .app-toast.show{
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+  }
+  .bulk-bar{
+    position:sticky;
+    bottom:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:var(--panel);
+    border-top:1px solid var(--green-dim);
+    padding:10px 16px;
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .bulk-bar.hidden{display:none;}
+  .bulk-checkbox{
+    width:20px;
+    height:20px;
+    accent-color:var(--green);
+    margin-right:8px;
+    flex-shrink:0;
+  }
+  .row-card.bulk-selectable{
+    display:flex;
+    align-items:flex-start;
+  }
+
+  .controls{
+    padding:14px 16px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:flex-end;
+  }
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;}
+  .field input, .field select{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:14px;
+    font-family:var(--mono);
+    width:120px;
+  }
+  .field select{font-family:inherit; width:auto;}
+  .field.grow{flex:1; min-width:140px;}
+  .field.grow input{width:100%;}
+
+  button.action{
+    background:var(--green-dim);
+    color:#eafff2;
+    border:none;
+    border-radius:8px;
+    padding:9px 14px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  button.action.secondary{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+  }
+  button.action.danger{
+    background:transparent;
+    border:1px solid var(--danger);
+    color:var(--danger);
+  }
+
+  .list{padding:0 16px;}
+  .row-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    margin-bottom:6px;
+  }
+  .row-card.done{border-color:var(--green-dim);}
+  .row-card.soon{border-color:var(--amber); box-shadow:inset 3px 0 0 var(--amber);}
+  .row-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .row-top input.name{
+    background:transparent;
+    border:none;
+    color:var(--text);
+    font-size:14.5px;
+    font-weight:600;
+    padding:2px 0;
+    width:100%;
+    border-bottom:1px dashed transparent;
+  }
+  .row-top input.name:focus{outline:none; border-bottom:1px dashed var(--green-dim);}
+  .badge{
+    font-family:var(--mono);
+    font-size:11px;
+    padding:3px 8px;
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .badge.pending{background:#241c10; color:var(--amber);}
+  .badge.done{background:#0f2a1c; color:var(--green);}
+
+  .row-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .mini-field{display:flex; flex-direction:column; gap:3px;}
+  .mini-field label{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.4px;}
+  .mini-field input, .mini-field select{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:7px;
+    padding:7px 8px;
+    font-size:13px;
+    font-family:var(--mono);
+    width:100%;
+  }
+  .mini-field select{font-family:inherit;}
+
+  .extra-events{
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px solid var(--line);
+  }
+  .extra-events > label{
+    font-size:10px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    display:block;
+    margin-bottom:6px;
+  }
+  .extra-list{
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    margin-bottom:8px;
+  }
+  .extra-empty{
+    font-size:11px;
+    color:var(--text-dim);
+    padding:4px 0;
+  }
+  .extra-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:6px 9px;
+    font-size:12px;
+  }
+  .extra-item.arrived{
+    border-color:var(--green-dim);
+  }
+  .extra-item .extra-date{
+    color:var(--text-dim);
+    font-family:var(--mono);
+  }
+  .extra-item.arrived .extra-date{color:var(--green);}
+  .extra-item .extra-pts{
+    font-family:var(--mono);
+    font-weight:600;
+    flex:1;
+    text-align:right;
+    margin-right:4px;
+  }
+  .extra-remove{
+    background:transparent;
+    border:none;
+    color:var(--danger);
+    font-size:14px;
+    cursor:pointer;
+    padding:0 2px;
+  }
+  .extra-add-row{
+    display:flex;
+    gap:6px;
+  }
+  .extra-date-input{
+    flex:1.3;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:7px;
+    padding:7px 8px;
+    font-size:12px;
+    font-family:var(--mono);
+  }
+  .extra-pts-input{
+    flex:1;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:7px;
+    padding:7px 8px;
+    font-size:12px;
+    font-family:var(--mono);
+    min-width:0;
+  }
+
+  .row-bottom{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px solid var(--line);
+  }
+  .row-bottom .date-block .date{
+    font-family:var(--mono);
+    font-size:15px;
+    font-weight:600;
+  }
+  .row-bottom .date-block .sub{
+    font-size:11px;
+    color:var(--text-dim);
+  }
+  .bonus-btn{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .bonus-btn button{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--amber);
+    border-radius:7px;
+    width:28px; height:28px;
+    font-size:15px;
+    line-height:1;
+    cursor:pointer;
+  }
+  .bonus-count{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--text-dim);
+    min-width:56px;
+    text-align:center;
+  }
+
+  .sort-bar{
+    padding:10px 16px 6px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .chip{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    font-size:12px;
+    padding:6px 11px;
+    border-radius:20px;
+    cursor:pointer;
+  }
+  .chip.active{
+    background:var(--green-dim);
+    color:#eafff2;
+    border-color:var(--green-dim);
+  }
+  .save-note{
+    text-align:center;
+    font-size:11px;
+    color:var(--text-dim);
+    padding:14px 16px 0;
+  }
+  .tools-panel{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    padding:0 16px 14px;
+  }
+  .tools-panel.hidden{display:none;}
+  .preview-banner{
+    margin:0 16px 10px;
+    background:#2a2410;
+    border:1px solid var(--amber);
+    color:var(--amber);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:12px;
+  }
+  .preview-banner.hidden{display:none;}
+  .preview-banner strong{color:var(--amber);}
+  .redeem-log-panel{
+    margin:0 16px 14px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px;
+    background:var(--panel);
+  }
+  .redeem-log-panel.hidden{display:none;}
+  .sell-prices-panel{
+    margin:0 16px 14px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px;
+    background:var(--panel);
+  }
+  .sell-prices-panel.hidden{display:none;}
+  .sell-price-note{
+    font-size:11.5px;
+    color:var(--text-dim);
+    margin-bottom:10px;
+  }
+  .sell-price-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .sell-price-grid input{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:7px;
+    padding:8px;
+    font-size:13px;
+    font-family:var(--mono);
+  }
+  .planner-cluster{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px;
+    margin-bottom:10px;
+  }
+  .planner-cluster-title{
+    font-size:13.5px;
+    font-weight:700;
+    margin-bottom:4px;
+  }
+  .planner-cluster-sub{
+    font-size:11.5px;
+    color:var(--text-dim);
+    margin-bottom:8px;
+  }
+  .planner-breakdown{
+    font-size:11.5px;
+    color:var(--text-dim);
+    margin-bottom:8px;
+  }
+  .planner-value{
+    font-family:var(--mono);
+    font-size:15px;
+    font-weight:700;
+    color:var(--green);
+  }
+  .planner-wait-note{
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed var(--line);
+    font-size:11.5px;
+    color:var(--amber);
+  }
+  .planner-empty{
+    font-size:12px;
+    color:var(--text-dim);
+    text-align:center;
+    padding:14px 0;
+  }
+  .goal-status{
+    border-radius:9px;
+    padding:10px 12px;
+    font-size:12px;
+    margin-bottom:12px;
+    line-height:1.5;
+  }
+  .goal-status.met{
+    background:#0f2a1c;
+    border:1px solid var(--green-dim);
+    color:var(--green);
+  }
+  .goal-status.short{
+    background:#2a2410;
+    border:1px solid var(--amber);
+    color:var(--amber);
+  }
+  .goal-reached-tag{
+    color:var(--green);
+    font-weight:700;
+    font-size:11px;
+  }
+  .goal-accounts-toggle{
+    margin-top:9px;
+    padding-top:8px;
+    border-top:1px dashed var(--line);
+    font-size:11px;
+    color:var(--text-dim);
+    cursor:pointer;
+  }
+  .goal-accounts-list{
+    margin-top:8px;
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+  }
+  .goal-account-row{
+    font-size:11.5px;
+    color:var(--text);
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:6px 9px;
+  }
+  .goal-account-meta{
+    color:var(--text-dim);
+    font-size:10.5px;
+    margin-left:4px;
+  }
+  .redeem-log-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+  }
+  .redeem-log-entry{
+    font-size:12px;
+    padding:2px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .redeem-log-entry:last-child{border-bottom:none;}
+  .redeem-log-entry .rl-name{color:var(--text); font-weight:600; font-size:13px;}
+  .redeem-log-entry .rl-meta{color:var(--text-dim); white-space:nowrap; font-size:11px; margin-top:2px;}
+  .rl-collapsed-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:11px 2px;
+    cursor:pointer;
+  }
+  .rl-collapsed-left{flex:1; min-width:0;}
+  .rl-collapsed-right{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    flex-shrink:0;
+  }
+  .rl-icon{font-size:13px; opacity:0.85;}
+  .rl-status-badge{
+    font-size:10.5px;
+    font-weight:700;
+    padding:5px 9px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    background:var(--panel-2);
+    white-space:nowrap;
+  }
+  .rl-status-badge.sold{
+    color:var(--green);
+    border-color:var(--green-dim);
+    background:#0f2a1c;
+  }
+  .rl-expand-arrow{
+    font-size:11px;
+    color:var(--text-dim);
+    width:12px;
+    text-align:center;
+  }
+  .rl-expanded-body{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding:0 2px 12px;
+  }
+  .rl-unmark-btn{
+    flex:1;
+    background:transparent;
+    border:1px solid var(--danger);
+    color:var(--danger);
+    border-radius:7px;
+    padding:9px 10px;
+    font-size:11px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .rl-delete-btn{
+    width:100%;
+    background:transparent;
+    border:1px dashed var(--danger);
+    color:var(--danger);
+    border-radius:7px;
+    padding:8px 10px;
+    font-size:11px;
+    font-weight:600;
+    cursor:pointer;
+    opacity:0.75;
+  }
+  .rl-code-row{
+    display:flex;
+    gap:6px;
+    margin-top:8px;
+  }
+  .rl-code-input{
+    flex:1;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--text);
+    padding:7px 8px;
+    font-size:12px;
+    font-family:var(--mono);
+  }
+  .rl-proof-row{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-top:8px;
+    flex-wrap:wrap;
+  }
+  .rl-mini-btn{
+    padding:6px 10px;
+    font-size:11px;
+    white-space:nowrap;
+  }
+  .rl-thumb{
+    height:32px;
+    width:32px;
+    object-fit:cover;
+    border-radius:6px;
+    border:1px solid var(--line);
+  }
+  .redeem-log-empty{
+    font-size:12px;
+    color:var(--text-dim);
+    text-align:center;
+    padding:10px 0;
+  }
+  .rl-overview{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:9px 11px;
+    margin-bottom:10px;
+    font-size:11.5px;
+    color:var(--text-dim);
+    line-height:1.6;
+  }
+  .rl-overview strong{color:var(--text);}
+  .rl-low-stock{
+    margin-top:6px;
+    color:var(--amber);
+    font-weight:600;
+  }
+  .rl-code-locked-row{
+    display:flex;
+    gap:6px;
+    align-items:center;
+  }
+  .rl-code-locked-display{
+    flex:1;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 8px;
+    font-size:12px;
+    font-family:var(--mono);
+    color:var(--text-dim);
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .rl-code-locked-display .lock-icon{flex-shrink:0;}
+  .rl-sold-section{
+    margin-top:12px;
+    border-top:1px solid var(--line);
+    padding-top:10px;
+  }
+  .rl-sold-toggle{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:12px;
+    color:var(--text-dim);
+    cursor:pointer;
+    padding:4px 2px;
+  }
+  .rl-sold-body{margin-top:8px;}
+  .rl-sold-body.hidden{display:none;}
+  .unlock-modal{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.55);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+  }
+  .unlock-modal.hidden{display:none;}
+  .unlock-modal-box{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px;
+    width:280px;
+    max-width:85%;
+  }
+  .unlock-modal-title{
+    font-size:14px;
+    font-weight:700;
+    margin-bottom:6px;
+  }
+  .unlock-modal-sub{
+    font-size:12px;
+    color:var(--text-dim);
+    margin-bottom:14px;
+  }
+  .unlock-modal-actions{
+    display:flex;
+    gap:8px;
+  }
+  .unlock-modal-actions button{flex:1;}
+  .rl-filters{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    padding-bottom:10px;
+    margin-bottom:10px;
+    border-bottom:1px solid var(--line);
+  }
+  .rl-search-input{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:12px;
+  }
+  .rl-filter-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .rl-filter-row .field.grow select{
+    width:100%;
+  }
+  .rl-sold-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-top:8px;
+  }
+  .rl-sold-badge{
+    font-size:11px;
+    font-weight:600;
+    color:var(--green);
+    background:#0f2a1c;
+    border:1px solid var(--green-dim);
+    border-radius:6px;
+    padding:6px 10px;
+    white-space:nowrap;
+  }
+  .rl-price-input{
+    width:80px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:7px;
+    padding:8px 8px;
+    font-size:12px;
+    font-family:var(--mono);
+  }
+  .rl-mark-sold-btn{
+    position:relative;
+    flex:1;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    border-radius:7px;
+    padding:8px 10px;
+    font-size:11px;
+    font-weight:600;
+    cursor:pointer;
+    overflow:hidden;
+    white-space:nowrap;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
+    touch-action:manipulation;
+  }
+  .rl-mark-sold-btn .rl-fill{
+    position:absolute;
+    left:0; top:0; bottom:0;
+    width:0%;
+    background:var(--green-dim);
+    transition:width linear;
+    z-index:0;
+  }
+  .rl-mark-sold-btn span{
+    position:relative;
+    z-index:1;
+  }
+  .rl-mark-sold-btn.unmark{
+    border-color:var(--danger);
+    color:var(--danger);
+  }
+  .rl-mark-sold-btn.unmark .rl-fill{
+    background:var(--danger);
+  }
+
+  .row-summary{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+  }
+  .row-summary input.name{
+    background:transparent;
+    border:none;
+    color:var(--text);
+    font-size:14px;
+    font-weight:600;
+    padding:2px 0;
+    flex:1;
+    min-width:0;
+    border-bottom:1px dashed transparent;
+  }
+  .row-summary input.name:focus{outline:none; border-bottom:1px dashed var(--green-dim);}
+  .summary-right{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex-shrink:0;
+  }
+  .mini-badge{
+    font-family:var(--mono);
+    font-size:11px;
+    padding:3px 8px;
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .mini-badge.pending{background:#241c10; color:var(--amber);}
+  .mini-badge.done{background:#0f2a1c; color:var(--green);}
+  .mini-badge.redeemed{background:#132a20; color:var(--green);}
+  .chevron{
+    background:transparent;
+    border:none;
+    color:var(--text-dim);
+    font-size:16px;
+    padding:2px 4px;
+    cursor:pointer;
+    line-height:1;
+  }
+  .meta-line{
+    font-size:11px;
+    color:var(--text-dim);
+    margin-top:3px;
+  }
+  .details{margin-top:10px;}
+  .details.hidden{display:none;}
+  .redeem-btn{
+    display:block;
+    width:100%;
+    background:transparent;
+    border:1px solid var(--danger, #e55);
+    color:var(--danger, #e55);
+    border-radius:8px;
+    padding:10px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    margin-bottom:10px;
+  }
+  .redeem-btn.confirm-pending{
+    background:var(--danger, #e55);
+    color:#fff;
+  }
+</style>
+</head>
+<body>
+
+<div class="sync-gate" id="syncGate">
+  <div class="sync-gate-box">
+    <h2>Points <span>Tracker</span></h2>
+    <p>Enter your sync code to load your data. This is the private code you saved earlier — it's the same on every device.</p>
+    <input type="text" id="syncCodeInput" placeholder="e.g. rrog4a-otv5n3-sss8ns" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="button" id="syncCodeSubmit">Connect</button>
+    <div class="sync-gate-status" id="syncGateStatus"></div>
+  </div>
+</div>
+
+<header>
+  <h1>Points <span>Tracker</span></h1>
+  <p>66 accounts · target completion dates</p>
+</header>
+
+<div class="stats" id="stats"></div>
+<div class="earnings-note" id="earningsNote"></div>
+
+<div class="controls">
+  <div class="field">
+    <label>Daily Points</label>
+    <input type="number" id="dailyPoints" value="170">
+  </div>
+  <div class="field grow">
+    <label>Search</label>
+    <input type="text" id="search" placeholder="Name, server, or ID...">
+  </div>
+  <button class="action secondary" id="toolsToggleBtn">⚙ Tools</button>
+</div>
+
+<div class="tools-panel hidden" id="toolsPanel">
+  <button class="action secondary" id="resetBtn">Reset All</button>
+  <button class="action secondary" id="exportJsonBtn">Export JSON</button>
+  <button class="action secondary" id="exportCsvBtn">Export CSV</button>
+  <label class="action secondary" for="importFile" style="cursor:pointer; display:inline-block;">Import JSON</label>
+  <input type="file" id="importFile" accept="application/json" style="display:none;">
+  <button class="action secondary" id="redeemLogBtn">Redeem Log</button>
+  <button class="action secondary" id="sellPricesBtn">Sell Prices</button>
+  <button class="action secondary" id="goalPlannerBtn">Goal Planner</button>
+</div>
+
+<div class="sell-prices-panel hidden" id="sellPricesPanel">
+  <div class="redeem-log-header">
+    <strong>Sell Prices (₹)</strong>
+    <button class="action secondary" id="sellPricesCloseBtn">Close</button>
+  </div>
+  <div class="sell-price-note">Your typical selling price per reward — used for earnings estimates and the Goal Planner. 5€ and 5$ (also 10€/10$) sell for different amounts, so they're split.</div>
+  <div class="sell-price-grid">
+    <div class="field">
+      <label>5€</label>
+      <input type="number" id="sellPrice5EUR" placeholder="₹">
+    </div>
+    <div class="field">
+      <label>5$</label>
+      <input type="number" id="sellPrice5USD" placeholder="₹">
+    </div>
+    <div class="field">
+      <label>10€</label>
+      <input type="number" id="sellPrice10EUR" placeholder="₹">
+    </div>
+    <div class="field">
+      <label>10$</label>
+      <input type="number" id="sellPrice10USD" placeholder="₹">
+    </div>
+    <div class="field">
+      <label>575 RP</label>
+      <input type="number" id="sellPriceLol" placeholder="₹">
+    </div>
+    <div class="field">
+      <label>OW 1000</label>
+      <input type="number" id="sellPriceOw" placeholder="₹">
+    </div>
+  </div>
+  <button class="action" id="sellPricesSaveBtn">Save Prices</button>
+</div>
+
+<div class="redeem-log-panel hidden" id="redeemLogPanel">
+  <div class="redeem-log-header">
+    <strong>Redeem Log</strong>
+    <button class="action secondary" id="redeemLogCloseBtn">Close</button>
+  </div>
+  <div class="rl-filters">
+    <input type="text" id="rlSearch" class="rl-search-input" placeholder="Search name, ID, server...">
+    <div class="rl-filter-row">
+      <span class="chip active" data-rlsold="all">All</span>
+      <span class="chip" data-rlsold="unsold">Unsold</span>
+      <span class="chip" data-rlsold="sold">Sold</span>
+    </div>
+    <div class="rl-filter-row">
+      <span class="chip active" data-rltarget="all">All Rewards</span>
+      <span class="chip" data-rltarget="5">5€/$</span>
+      <span class="chip" data-rltarget="10">10€/$</span>
+      <span class="chip" data-rltarget="lol">575 RP</span>
+      <span class="chip" data-rltarget="ow">OW 1000</span>
+    </div>
+    <div class="rl-filter-row">
+      <div class="field grow">
+        <select id="rlMonthFilter">
+          <option value="all">All Months</option>
+        </select>
+      </div>
+      <div class="field grow">
+        <select id="rlServerFilter">
+          <option value="all">All Servers</option>
+        </select>
+      </div>
+    </div>
+    <div class="rl-filter-row">
+      <span class="chip" data-rlmissing="proof">Missing Proof</span>
+      <span class="chip" data-rlmissing="code">Missing Code</span>
+    </div>
+    <div class="rl-filter-row">
+      <span style="font-size:11px; color:var(--text-dim); align-self:center; margin-right:2px;">Sort:</span>
+      <span class="chip active" data-rlsort="date-desc">Newest</span>
+      <span class="chip" data-rlsort="date-asc">Oldest</span>
+      <span class="chip" data-rlsort="points-desc">Points ↓</span>
+      <span class="chip" data-rlsort="points-asc">Points ↑</span>
+      <span class="chip" data-rlsort="name">Name</span>
+    </div>
+  </div>
+  <div class="rl-overview" id="rlOverview"></div>
+  <div id="redeemLogList"></div>
+  <div class="rl-sold-section" id="rlSoldSection">
+    <div class="rl-sold-toggle" id="rlSoldSectionToggle">
+      <span id="rlSoldToggleLabel">Sold 7+ days ago (0)</span>
+      <span id="rlSoldToggleArrow">▾</span>
+    </div>
+    <div class="rl-sold-body hidden" id="rlSoldSectionBody"></div>
+  </div>
+</div>
+
+<div class="sell-prices-panel hidden" id="goalPlannerPanel">
+  <div class="redeem-log-header">
+    <strong>Goal Planner</strong>
+    <button class="action secondary" id="goalPlannerCloseBtn">Close</button>
+  </div>
+  <div class="sell-price-note">Groups your ready accounts into up to 3 redeem sessions per month, near dates merged together, so you're not redeeming daily. This is a suggestion only — nothing is redeemed automatically.</div>
+  <div class="sell-price-grid">
+    <div class="field">
+      <label>₹ Goal Amount</label>
+      <input type="number" id="goalAmountInput" placeholder="e.g. 5000">
+    </div>
+    <div class="field">
+      <label>By Date</label>
+      <input type="date" id="goalDateInput">
+    </div>
+  </div>
+  <div id="goalPlanList"></div>
+</div>
+
+<div class="unlock-modal hidden" id="unlockModal">
+  <div class="unlock-modal-box">
+    <div class="unlock-modal-title" id="unlockModalTitle">Unlock this code for editing?</div>
+    <div class="unlock-modal-sub" id="unlockModalSub">It will lock itself again once you tap away.</div>
+    <div class="unlock-modal-actions">
+      <button class="action secondary" id="unlockCancelBtn" type="button">Cancel</button>
+      <button class="action" id="unlockConfirmBtn" type="button">Unlock</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="sort-bar">
+  <span class="chip active" data-target="all">All Targets</span>
+  <span class="chip" data-target="5">5€/$</span>
+  <span class="chip" data-target="10">10€/$</span>
+  <span class="chip" data-target="lol">575 RP</span>
+  <span class="chip" data-target="ow">OW 1000</span>
+</div>
+<div class="sort-bar">
+  <span style="font-size:11px; color:var(--text-dim); align-self:center; margin-right:2px;">Preview as:</span>
+  <span class="chip active" data-preview="none">Actual</span>
+  <span class="chip" data-preview="5">5€/$</span>
+  <span class="chip" data-preview="10">10€/$</span>
+  <span class="chip" data-preview="lol">575 RP</span>
+  <span class="chip" data-preview="ow">OW 1000</span>
+</div>
+<div class="preview-banner hidden" id="previewBanner">
+  Previewing everyone as <strong id="previewLabel"></strong> — nothing is saved, actual choices unchanged
+</div>
+<div class="sort-bar">
+  <div class="field grow">
+    <label>Month</label>
+    <select id="monthFilter">
+      <option value="all">All Months</option>
+    </select>
+  </div>
+</div>
+<div class="sort-bar">
+  <span class="chip active" data-sort="date">Sort: Date ↑</span>
+  <span class="chip" data-sort="date-desc">Date ↓</span>
+  <span class="chip" data-sort="remaining">Remaining pts</span>
+  <span class="chip" data-sort="progress">Progress %</span>
+  <span class="chip" data-sort="name">Name</span>
+</div>
+<div class="sort-bar">
+  <span class="chip view-chip" id="expandAllChip">Expand All</span>
+  <span class="chip view-chip" id="collapseAllChip">Collapse All</span>
+  <span class="chip view-chip" id="bulkModeChip">Bulk Redeem</span>
+</div>
+
+<div class="list" id="list"></div>
+
+<div class="bulk-bar hidden" id="bulkBar">
+  <span id="bulkCountLabel">0 selected</span>
+  <button type="button" class="action" id="bulkRedeemBtn">Redeem Selected</button>
+</div>
+
+<p class="save-note" id="saveNote">Synced automatically via your sync code</p>
+<div class="sync-footer" id="changeSyncCodeBtn">Change sync code</div>
+
+<script type="module" src="app.js"></script>
+
+</body>
+</html>
