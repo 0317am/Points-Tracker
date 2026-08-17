@@ -524,55 +524,6 @@
     text-align:center;
     padding:14px 0;
   }
-  .goal-status{
-    border-radius:9px;
-    padding:10px 12px;
-    font-size:12px;
-    margin-bottom:12px;
-    line-height:1.5;
-  }
-  .goal-status.met{
-    background:#0f2a1c;
-    border:1px solid var(--green-dim);
-    color:var(--green);
-  }
-  .goal-status.short{
-    background:#2a2410;
-    border:1px solid var(--amber);
-    color:var(--amber);
-  }
-  .goal-reached-tag{
-    color:var(--green);
-    font-weight:700;
-    font-size:11px;
-  }
-  .goal-accounts-toggle{
-    margin-top:9px;
-    padding-top:8px;
-    border-top:1px dashed var(--line);
-    font-size:11px;
-    color:var(--text-dim);
-    cursor:pointer;
-  }
-  .goal-accounts-list{
-    margin-top:8px;
-    display:flex;
-    flex-direction:column;
-    gap:5px;
-  }
-  .goal-account-row{
-    font-size:11.5px;
-    color:var(--text);
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:6px 9px;
-  }
-  .goal-account-meta{
-    color:var(--text-dim);
-    font-size:10.5px;
-    margin-left:4px;
-  }
   .redeem-log-header{
     display:flex;
     justify-content:space-between;
@@ -945,7 +896,7 @@
   <div class="sync-gate-box">
     <h2>Points <span>Tracker</span></h2>
     <p>Enter your sync code to load your data. This is the private code you saved earlier — it's the same on every device.</p>
-    <input type="text" id="syncCodeInput" placeholder="e.g. rrog4a-otv5n3-sss8ns" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <input type="text" id="syncCodeInput" placeholder="e.g. ab12cd-ef34gh-ij56kl" autocomplete="off" autocapitalize="off" spellcheck="false">
     <button type="button" id="syncCodeSubmit">Connect</button>
     <div class="sync-gate-status" id="syncGateStatus"></div>
   </div>
@@ -979,7 +930,6 @@
   <input type="file" id="importFile" accept="application/json" style="display:none;">
   <button class="action secondary" id="redeemLogBtn">Redeem Log</button>
   <button class="action secondary" id="sellPricesBtn">Sell Prices</button>
-  <button class="action secondary" id="goalPlannerBtn">Goal Planner</button>
 </div>
 
 <div class="sell-prices-panel hidden" id="sellPricesPanel">
@@ -987,7 +937,7 @@
     <strong>Sell Prices (₹)</strong>
     <button class="action secondary" id="sellPricesCloseBtn">Close</button>
   </div>
-  <div class="sell-price-note">Your typical selling price per reward — used for earnings estimates and the Goal Planner. 5€ and 5$ (also 10€/10$) sell for different amounts, so they're split.</div>
+  <div class="sell-price-note">Your typical selling price per reward — used for earnings estimates. 5€ and 5$ (also 10€/10$) sell for different amounts, so they're split.</div>
   <div class="sell-price-grid">
     <div class="field">
       <label>5€</label>
@@ -1070,25 +1020,6 @@
     </div>
     <div class="rl-sold-body hidden" id="rlSoldSectionBody"></div>
   </div>
-</div>
-
-<div class="sell-prices-panel hidden" id="goalPlannerPanel">
-  <div class="redeem-log-header">
-    <strong>Goal Planner</strong>
-    <button class="action secondary" id="goalPlannerCloseBtn">Close</button>
-  </div>
-  <div class="sell-price-note">Groups your ready accounts into up to 3 redeem sessions per month, near dates merged together, so you're not redeeming daily. This is a suggestion only — nothing is redeemed automatically.</div>
-  <div class="sell-price-grid">
-    <div class="field">
-      <label>₹ Goal Amount</label>
-      <input type="number" id="goalAmountInput" placeholder="e.g. 5000">
-    </div>
-    <div class="field">
-      <label>By Date</label>
-      <input type="date" id="goalDateInput">
-    </div>
-  </div>
-  <div id="goalPlanList"></div>
 </div>
 
 <div class="unlock-modal hidden" id="unlockModal">
