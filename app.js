@@ -1,9 +1,4 @@
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-  getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
 const firebaseConfig = {
   apiKey: "AIzaSyAA37hManUrwxtMNgQjhQA2bHkY9yFMLj0",
   authDomain: "points-tracker-29946.firebaseapp.com",
@@ -12,24 +7,49 @@ const firebaseConfig = {
   messagingSenderId: "210412447249",
   appId: "1:210412447249:web:9fa2d7c310bf72162d73b0"
 };
-const fbApp = initializeApp(firebaseConfig);
-const db = getFirestore(fbApp);
+
+let initializeApp, getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, fbApp, db;
+let fbReady = false;
+
+async function initFirebase(){
+  try{
+    const [appModule, fsModule] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js")
+    ]);
+    initializeApp = appModule.initializeApp;
+    getFirestore = fsModule.getFirestore;
+    doc = fsModule.doc; getDoc = fsModule.getDoc; setDoc = fsModule.setDoc;
+    collection = fsModule.collection; getDocs = fsModule.getDocs; deleteDoc = fsModule.deleteDoc;
+    fbApp = initializeApp(firebaseConfig);
+    db = getFirestore(fbApp);
+    fbReady = true;
+    return true;
+  }catch(e){
+    console.error("Firebase failed to load:", e);
+    const statusEl = document.getElementById("syncGateStatus");
+    if(statusEl) statusEl.textContent = "Couldn't load the sync service. Check your internet connection and reload this page.";
+    const btn = document.getElementById("syncCodeSubmit");
+    if(btn) btn.disabled = true;
+    return false;
+  }
+}
 
 let syncCode = null;
 
 async function fbLoadMain(){
-  if(!syncCode) return null;
+  if(!syncCode || !fbReady) return null;
   const snap = await getDoc(doc(db, "syncData", syncCode));
   return snap.exists() ? snap.data() : null;
 }
 
 async function fbSaveMain(data){
-  if(!syncCode) return;
+  if(!syncCode || !fbReady) return;
   await setDoc(doc(db, "syncData", syncCode), data);
 }
 
 async function fbLoadProofs(){
-  if(!syncCode) return {};
+  if(!syncCode || !fbReady) return {};
   const map = {};
   const snap = await getDocs(collection(db, "syncData", syncCode, "proofs"));
   snap.forEach(d => { map[d.id] = d.data().data; });
@@ -37,12 +57,12 @@ async function fbLoadProofs(){
 }
 
 async function fbSaveProof(entryId, dataUrl){
-  if(!syncCode) return;
+  if(!syncCode || !fbReady) return;
   await setDoc(doc(db, "syncData", syncCode, "proofs", entryId), { data: dataUrl });
 }
 
 async function fbDeleteProof(entryId){
-  if(!syncCode) return;
+  if(!syncCode || !fbReady) return;
   try{ await deleteDoc(doc(db, "syncData", syncCode, "proofs", entryId)); }catch(e){}
 }
 
@@ -291,8 +311,7 @@ async function saveMainDoc(){
 }
 
 async function loadData(){
-  let main = null;
-  try{ main = await fbLoadMain(); }catch(e){ console.error(e); }
+  const main = await fbLoadMain();
 
   if(main){
     try{ rows = main.rows ? JSON.parse(main.rows) : defaultRows(); }catch(e){ rows = defaultRows(); }
@@ -1456,6 +1475,10 @@ function hideSyncGate(){
 }
 
 async function connectWithCode(code){
+  if(!fbReady){
+    document.getElementById("syncGateStatus").textContent = "Sync service isn't ready yet — wait a moment and try again.";
+    return;
+  }
   const trimmed = code.trim();
   if(!trimmed){
     document.getElementById("syncGateStatus").textContent = "Enter your sync code first.";
@@ -1486,14 +1509,31 @@ document.getElementById("changeSyncCodeBtn").addEventListener("click", () => {
   showSyncGate();
 });
 
-const savedCode = localStorage.getItem(SYNC_CODE_LS_KEY);
-if(savedCode){
-  syncCode = savedCode;
-  loadData().then(hideSyncGate).catch((e) => {
-    console.error(e);
-    document.getElementById("syncGateStatus").textContent = "Couldn't connect — check your internet connection.";
+(async () => {
+  const submitBtn = document.getElementById("syncCodeSubmit");
+  const statusEl = document.getElementById("syncGateStatus");
+  submitBtn.disabled = true;
+  statusEl.textContent = "Loading sync service...";
+
+  const ready = await initFirebase();
+  if(!ready) return; // initFirebase already displayed the error message
+
+  submitBtn.disabled = false;
+  statusEl.textContent = "";
+
+  const savedCode = localStorage.getItem(SYNC_CODE_LS_KEY);
+  if(savedCode){
+    syncCode = savedCode;
+    statusEl.textContent = "Connecting...";
+    try{
+      await loadData();
+      hideSyncGate();
+    }catch(e){
+      console.error(e);
+      statusEl.textContent = "Couldn't connect — check your internet connection.";
+      showSyncGate();
+    }
+  }else{
     showSyncGate();
-  });
-}else{
-  showSyncGate();
-}
+  }
+})();
