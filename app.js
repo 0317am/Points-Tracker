@@ -56,6 +56,18 @@ async function fbLoadProofs(){
   return map;
 }
 
+let proofsLoaded = false;
+async function ensureProofsLoaded(){
+  if(proofsLoaded) return;
+  try{
+    const proofMap = await fbLoadProofs();
+    redeemLog.forEach(entry => {
+      if(proofMap[entry.entryId]) entry.proof = proofMap[entry.entryId];
+    });
+    proofsLoaded = true;
+  }catch(e){ console.error(e); }
+}
+
 async function fbSaveProof(entryId, dataUrl){
   if(!syncCode || !fbReady) return;
   await setDoc(doc(db, "syncData", syncCode, "proofs", entryId), { data: dataUrl });
@@ -344,13 +356,6 @@ async function loadData(){
     if(typeof entry.proof === "undefined") entry.proof = null;
     if(typeof entry.codeLocked === "undefined") entry.codeLocked = !!entry.code;
   });
-
-  try{
-    const proofMap = await fbLoadProofs();
-    redeemLog.forEach(entry => {
-      if(proofMap[entry.entryId]) entry.proof = proofMap[entry.entryId];
-    });
-  }catch(e){ console.error(e); }
 
   document.getElementById("sellPrice5EUR").value = sellPrices["5EUR"] || "";
   document.getElementById("sellPrice5USD").value = sellPrices["5USD"] || "";
@@ -850,9 +855,15 @@ document.getElementById("toolsToggleBtn").addEventListener("click", () => {
   document.getElementById("toolsPanel").classList.toggle("hidden");
 });
 
-document.getElementById("redeemLogBtn").addEventListener("click", () => {
-  document.getElementById("redeemLogPanel").classList.toggle("hidden");
+document.getElementById("redeemLogBtn").addEventListener("click", async () => {
+  const panel = document.getElementById("redeemLogPanel");
+  const wasHidden = panel.classList.contains("hidden");
+  panel.classList.toggle("hidden");
   document.getElementById("sellPricesPanel").classList.add("hidden");
+  if(wasHidden && !proofsLoaded){
+    document.getElementById("redeemLogList").innerHTML = '<div class="redeem-log-empty">Loading proofs...</div>';
+    await ensureProofsLoaded();
+  }
   renderRedeemLog();
 });
 
@@ -1394,7 +1405,9 @@ function downloadBlob(content, filename, type){
   URL.revokeObjectURL(url);
 }
 
-document.getElementById("exportJsonBtn").addEventListener("click", () => {
+document.getElementById("exportJsonBtn").addEventListener("click", async () => {
+  showToast("Preparing export...");
+  await ensureProofsLoaded();
   const payload = JSON.stringify({ dailyPoints, rows, redeemLog }, null, 2);
   downloadBlob(payload, "points-tracker-" + todayStr() + ".json", "application/json");
 });
@@ -1474,6 +1487,14 @@ function hideSyncGate(){
   document.getElementById("syncGate").classList.add("hidden");
 }
 
+const EXPECTED_CODE_HASH = "99eb3895ab6b2def35434bc2828724d3d2fbd8cad3952345ef0a0b2930637d7a";
+
+async function hashCode(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function connectWithCode(code){
   if(!fbReady){
     document.getElementById("syncGateStatus").textContent = "Sync service isn't ready yet — wait a moment and try again.";
@@ -1482,6 +1503,12 @@ async function connectWithCode(code){
   const trimmed = code.trim();
   if(!trimmed){
     document.getElementById("syncGateStatus").textContent = "Enter your sync code first.";
+    return;
+  }
+  document.getElementById("syncGateStatus").textContent = "Checking...";
+  const enteredHash = await hashCode(trimmed);
+  if(enteredHash !== EXPECTED_CODE_HASH){
+    document.getElementById("syncGateStatus").textContent = "Invalid code.";
     return;
   }
   document.getElementById("syncGateStatus").textContent = "Connecting...";
@@ -1522,7 +1549,7 @@ document.getElementById("changeSyncCodeBtn").addEventListener("click", () => {
   statusEl.textContent = "";
 
   const savedCode = localStorage.getItem(SYNC_CODE_LS_KEY);
-  if(savedCode){
+  if(savedCode && await hashCode(savedCode) === EXPECTED_CODE_HASH){
     syncCode = savedCode;
     statusEl.textContent = "Connecting...";
     try{
@@ -1534,6 +1561,7 @@ document.getElementById("changeSyncCodeBtn").addEventListener("click", () => {
       showSyncGate();
     }
   }else{
+    if(savedCode) localStorage.removeItem(SYNC_CODE_LS_KEY);
     showSyncGate();
   }
 })();
