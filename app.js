@@ -204,20 +204,20 @@ function defaultRows(){
   for(let i=1;i<=51;i++){
     arr.push({ id: i, name: "ID " + i, server: "", startPoints: 0, startDate: todayStr(), target: "5", extraEvents: [], dailyRate: null, redeemed: false, redeemedDate: null });
   }
-  for(let i=52;i<=66;i++){
-    arr.push({ id: i, name: "ID " + i, server: "USA", startPoints: 0, startDate: todayStr(), target: "5", extraEvents: [], dailyRate: i === 52 ? 200 : null, redeemed: false, redeemedDate: null });
+  for(let i=52;i<=70;i++){
+    arr.push({ id: i, name: "ID " + i, server: "USA", startPoints: 0, startDate: todayStr(), target: "10", extraEvents: [], dailyRate: null, redeemed: false, redeemedDate: null });
   }
   return arr;
 }
 
 function ensureFullRoster(){
-  // migrate older saves up to the current 66 roster
+  // migrate older saves up to the current 70 roster
   const existingIds = new Set(rows.map(r => r.id));
   for(let i=1;i<=51;i++){
     if(!existingIds.has(i)) rows.push({ id:i, name:"ID "+i, server:"", startPoints:0, startDate:todayStr(), target:"5", extraEvents:[], dailyRate:null, redeemed:false, redeemedDate:null });
   }
-  for(let i=52;i<=66;i++){
-    if(!existingIds.has(i)) rows.push({ id:i, name:"ID "+i, server:"USA", startPoints:0, startDate:todayStr(), target:"5", extraEvents:[], dailyRate: i===52?200:null, redeemed:false, redeemedDate:null });
+  for(let i=52;i<=70;i++){
+    if(!existingIds.has(i)) rows.push({ id:i, name:"ID "+i, server:"USA", startPoints:0, startDate:todayStr(), target:"10", extraEvents:[], dailyRate:null, redeemed:false, redeemedDate:null });
   }
   rows.sort((a,b) => a.id - b.id);
 }
@@ -233,52 +233,10 @@ function normalizeRows(){
       }
     }
     delete r.extra;
-    if(typeof r.dailyRate === "undefined" || r.dailyRate === null){
-      r.dailyRate = (r.id === 52) ? 200 : null;
-    }
+    if(typeof r.dailyRate === "undefined") r.dailyRate = null;
     if(typeof r.redeemed === "undefined") r.redeemed = false;
     if(typeof r.redeemedDate === "undefined") r.redeemedDate = null;
     delete r.bonus;
-  });
-}
-
-const PRESET_NAMES = {
-  1:{name:"Marenbosch12@",server:"DE#217"}, 2:{name:"Brentmarquez@",server:"DE#422"},
-  3:{name:"Noahbaumann95@",server:"DE#603"}, 4:{name:"Veraheim97@",server:"DE#822"},
-  5:{name:"Albersmitht911@",server:"DE#258"}, 6:{name:"Licameier121@",server:"DE#803"},
-  7:{name:"Annafrei04@",server:"DE#1"}, 8:{name:"Fischerjonas860@",server:"DE#442"},
-  9:{name:"Leonhartmann273@",server:"DE#213"}, 10:{name:"Donnabutler358@",server:"DE#257"},
-  11:{name:"Thomasbrandon9578@",server:"DE#842"}, 12:{name:"Oliverkrause00@",server:"DE#600"},
-  13:{name:"Stenfanrichter842@",server:"DE#23"}, 14:{name:"Helenewessel365@",server:"DE#656"},
-  15:{name:"Kevinschulz1013@",server:"DE#507"}, 16:{name:"Albinhansen3@",server:"DE#753"},
-  17:{name:"Milanbrenner@z",server:"DE#818"}, 18:{name:"Estellaarias83@",server:"DE#536"},
-  19:{name:"Dietlindebuchner819@",server:"DE#232"}, 20:{name:"karinbrand208@",server:"DE#895"},
-  21:{name:"Kimdiehl412@gmail.com",server:"DE#368"}, 22:{name:"Jannabarber902@",server:"DE#899"},
-  23:{name:"Johnsonthomas64x@",server:"DE#468"}, 24:{name:"Hartunghagen69@",server:"DE#905"},
-  25:{name:"Norascholl9@gmail.com",server:"DE#737"}, 26:{name:"Juliaweber9126@",server:"DW#462"},
-  27:{name:"robinward238@gmail.com",server:"DE#229"}, 28:{name:"jakobgreiner21@gmail.com",server:"DE#444"},
-  29:{name:"Kurtparrish11@gmail.com",server:"DE#723"}, 30:{name:"Arndstrauch@zohomail.in",server:"DE#859"},
-  31:{name:"Aloysnoll333@proton.me",server:"DE#333"}, 32:{name:"Stevenstarke@proton.me",server:"DE#555"},
-  33:{name:"gilbertolynch156@gmail.com",server:"DE#804"}, 34:{name:"Kimramos888@proton.me",server:"DE#888"},
-  35:{name:"Piaadams@proton.me",server:"DE#777"}, 36:{name:"Jewelwatson779@gmail.com",server:"DE#779"},
-  37:{name:"Renaterath@proton.me",server:"DE#766"}, 38:{name:"Alanahill846@proton.me",server:"DE#846"},
-  39:{name:"philipdietrich432@proton.me",server:"DE#432"}, 40:{name:"doraschwarze@proton.me",server:"DE#499"},
-  41:{name:"lidiakonrad@proton.me",server:"DE#437"}, 42:{name:"elisehaller349@proton.me",server:"DE#349"},
-  43:{name:"katrinjost725@proton.me",server:"DE#725"}, 44:{name:"Angelastumpf625@proton",server:"DE#625"},
-  45:{name:"Jungaser525@proton.me",server:"DE#525"}, 46:{name:"Willihoman325@proton.me",server:"DE#621"},
-  48:{name:"Sandraworner829@proton.me",server:"DE#829"},
-  52:{name:"christhomas619@Proton.me",server:"US-TX#716"}, 53:{name:"Charlottevance85@proton.me",server:"US-NY#719"}
-};
-
-function applyPresetNames(){
-  rows.forEach(r => {
-    const preset = PRESET_NAMES[r.id];
-    if(!preset) return;
-    const prefixedName = r.id + ") " + preset.name;
-    if(r.name === "ID " + r.id || r.name === preset.name){
-      r.name = prefixedName;
-      if(!r.server || r.server === "USA") r.server = preset.server;
-    }
   });
 }
 
@@ -346,7 +304,6 @@ async function loadData(){
 
   ensureFullRoster();
   normalizeRows();
-  applyPresetNames();
 
   redeemLog.forEach(entry => {
     if(typeof entry.sold === "undefined") entry.sold = false;
@@ -606,7 +563,7 @@ function renderStats(){
 
   const stats = document.getElementById("stats");
   stats.innerHTML = `
-    <div class="stat"><div class="num">${completedCount}/66</div><div class="lbl">Target Reached</div></div>
+    <div class="stat"><div class="num">${completedCount}/${rows.length}</div><div class="lbl">Target Reached</div></div>
     <div class="stat"><div class="num">₹${totalEarned}</div><div class="lbl">Total Earned</div></div>
     <div class="stat"><div class="num">${next ? fmtDate(next.c.completion).split(' ').slice(0,2).join(' ') : '—'}</div><div class="lbl">Next Completion</div></div>
     <div class="stat"><div class="num">${dailyPoints}</div><div class="lbl">Default Pts/Day</div></div>
@@ -1387,7 +1344,7 @@ document.getElementById("unlockConfirmBtn").addEventListener("click", (e) => {
 });
 
 document.getElementById("resetBtn").addEventListener("click", async () => {
-  if(!confirm("Reset all 66 accounts to zero? This clears points, targets and bonuses.")) return;
+  if(!confirm(`Reset all ${rows.length} accounts to zero? This clears points, targets and bonuses.`)) return;
   rows = defaultRows();
   await saveRows();
   render();
