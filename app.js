@@ -70,7 +70,6 @@ const STORAGE_KEY = "pts-tracker-rows-v1";
 const SETTINGS_KEY = "pts-tracker-settings-v1";
 const REDEEM_LOG_KEY = "pts-tracker-redeemlog-v1";
 const SELL_PRICES_KEY = "pts-tracker-sellprices-v1";
-const GOAL_KEY = "pts-tracker-goal-v1";
 
 let rows = [];
 let redeemLog = [];
@@ -86,9 +85,6 @@ let previewTarget = null;
 let bulkMode = false;
 let bulkSelected = new Set();
 let sellPrices = { "5EUR": 0, "5USD": 0, "10EUR": 0, "10USD": 0, "lol": 0, "ow": 0 };
-let goalAmount = null;
-let goalDate = null;
-let goalPlanExpanded = new Set();
 
 let rlSearchTerm = "";
 let rlSoldFilter = "all";
@@ -283,7 +279,6 @@ async function saveMainDoc(){
           dailyPoints,
           redeemLog: JSON.stringify(stripProofsForStorage(redeemLog)),
           sellPrices: JSON.stringify(sellPrices),
-          goal: JSON.stringify({ amount: goalAmount, date: goalDate }),
           updatedAt: Date.now()
         });
       }catch(e){
@@ -312,11 +307,6 @@ async function loadData(){
         parsed["10EUR"] = parsed["10"]; parsed["10USD"] = parsed["10"];
       }
       sellPrices = Object.assign(sellPrices, parsed);
-    }catch(e){ /* keep defaults */ }
-    try{
-      const g = main.goal ? JSON.parse(main.goal) : {};
-      goalAmount = g.amount || null;
-      goalDate = g.date || null;
     }catch(e){ /* keep defaults */ }
   }else{
     rows = defaultRows();
@@ -349,15 +339,12 @@ async function loadData(){
   document.getElementById("sellPrice10USD").value = sellPrices["10USD"] || "";
   document.getElementById("sellPriceLol").value = sellPrices["lol"] || "";
   document.getElementById("sellPriceOw").value = sellPrices["ow"] || "";
-  if(goalAmount) document.getElementById("goalAmountInput").value = goalAmount;
-  if(goalDate) document.getElementById("goalDateInput").value = goalDate;
   document.getElementById("dailyPoints").value = dailyPoints;
   await saveRows();
   render();
 }
 
 async function saveSellPrices(){ await saveMainDoc(); }
-async function saveGoal(){ await saveMainDoc(); }
 async function saveRows(){ await saveMainDoc(); }
 async function saveSettings(){ await saveMainDoc(); }
 async function saveRedeemLog(){ await saveMainDoc(); }
@@ -847,7 +834,6 @@ document.getElementById("toolsToggleBtn").addEventListener("click", () => {
 document.getElementById("redeemLogBtn").addEventListener("click", () => {
   document.getElementById("redeemLogPanel").classList.toggle("hidden");
   document.getElementById("sellPricesPanel").classList.add("hidden");
-  document.getElementById("goalPlannerPanel").classList.add("hidden");
   renderRedeemLog();
 });
 
@@ -858,7 +844,6 @@ document.getElementById("redeemLogCloseBtn").addEventListener("click", () => {
 document.getElementById("sellPricesBtn").addEventListener("click", () => {
   document.getElementById("sellPricesPanel").classList.toggle("hidden");
   document.getElementById("redeemLogPanel").classList.add("hidden");
-  document.getElementById("goalPlannerPanel").classList.add("hidden");
 });
 
 document.getElementById("sellPricesCloseBtn").addEventListener("click", () => {
@@ -875,38 +860,6 @@ document.getElementById("sellPricesSaveBtn").addEventListener("click", () => {
   saveSellPrices();
   showToast("Sell prices saved.");
   document.getElementById("sellPricesPanel").classList.add("hidden");
-  renderGoalPlan();
-});
-
-document.getElementById("goalPlannerBtn").addEventListener("click", () => {
-  document.getElementById("goalPlannerPanel").classList.toggle("hidden");
-  document.getElementById("redeemLogPanel").classList.add("hidden");
-  document.getElementById("sellPricesPanel").classList.add("hidden");
-  renderGoalPlan();
-});
-
-document.getElementById("goalPlannerCloseBtn").addEventListener("click", () => {
-  document.getElementById("goalPlannerPanel").classList.add("hidden");
-});
-
-document.getElementById("goalAmountInput").addEventListener("input", (e) => {
-  goalAmount = Number(e.target.value) || null;
-  saveGoal();
-  renderGoalPlan();
-});
-
-document.getElementById("goalDateInput").addEventListener("change", (e) => {
-  goalDate = e.target.value || null;
-  saveGoal();
-  renderGoalPlan();
-});
-
-document.getElementById("goalPlanList").addEventListener("click", (e) => {
-  const toggle = e.target.closest(".goal-accounts-toggle");
-  if(!toggle) return;
-  const idx = Number(toggle.dataset.batchidx);
-  if(goalPlanExpanded.has(idx)) goalPlanExpanded.delete(idx); else goalPlanExpanded.add(idx);
-  renderGoalPlan();
 });
 
 function populateRlMonthFilter(){
@@ -931,116 +884,6 @@ function populateRlServerFilter(){
   const newHtml = optionsHtml.join("");
   if(sel.innerHTML !== newHtml) sel.innerHTML = newHtml;
   sel.value = servers.includes(current) || current === "all" ? current : "all";
-}
-
-function chunkByGaps(items, maxChunks){
-  if(items.length <= 1) return [items];
-  const gaps = [];
-  for(let i = 1; i < items.length; i++){
-    const days = (items[i].calc.completion - items[i - 1].calc.completion) / 86400000;
-    gaps.push({ index: i, days });
-  }
-  const numSplits = Math.min(maxChunks - 1, gaps.length);
-  const topGaps = [...gaps].sort((a,b) => b.days - a.days).slice(0, numSplits);
-  const splitIndices = topGaps.map(g => g.index).sort((a,b) => a - b);
-  const chunks = [];
-  let start = 0;
-  splitIndices.forEach(idx => {
-    chunks.push(items.slice(start, idx));
-    start = idx;
-  });
-  chunks.push(items.slice(start));
-  return chunks;
-}
-
-function computeGoalPlan(amount, dateStr){
-  if(!amount || !dateStr) return null;
-  const targetDate = new Date(dateStr + "T23:59:59");
-  const eligible = rows
-    .filter(r => !r.redeemed)
-    .map(r => ({ row: r, calc: computeRow(r) }))
-    .filter(p => p.calc.completion <= targetDate)
-    .sort((a,b) => a.calc.completion - b.calc.completion);
-
-  if(eligible.length === 0) return { batches: [], totalLow: 0, totalHigh: 0, goalMet: false, reachedAt: -1 };
-
-  const monthGroups = {};
-  eligible.forEach(p => {
-    const key = monthKey(p.calc.completion);
-    if(!monthGroups[key]) monthGroups[key] = [];
-    monthGroups[key].push(p);
-  });
-
-  const monthKeys = Object.keys(monthGroups).sort();
-  const batches = [];
-  monthKeys.forEach(mk => {
-    const chunks = chunkByGaps(monthGroups[mk], 3);
-    chunks.forEach(chunk => {
-      const redeemDate = chunk[chunk.length - 1].calc.completion;
-      const counts = { "5": 0, "10": 0, "lol": 0, "ow": 0 };
-      let value = 0;
-      chunk.forEach(p => {
-        if(counts.hasOwnProperty(p.row.target)) counts[p.row.target]++;
-        value += getSellPrice(p.row) || 0;
-      });
-      batches.push({
-        redeemDate, count: chunk.length, counts, value, items: chunk,
-        low: Math.round(value * 0.8),
-        high: Math.round(value * 1.2)
-      });
-    });
-  });
-
-  let cumLow = 0, cumHigh = 0, reachedAt = -1;
-  batches.forEach((b, i) => {
-    cumLow += b.low;
-    cumHigh += b.high;
-    b.cumLow = cumLow;
-    b.cumHigh = cumHigh;
-    if(reachedAt === -1 && cumLow >= amount) reachedAt = i;
-  });
-
-  return { batches, totalLow: cumLow, totalHigh: cumHigh, goalMet: reachedAt !== -1, reachedAt };
-}
-
-function renderGoalPlan(){
-  const container = document.getElementById("goalPlanList");
-  if(!container) return;
-  if(!goalAmount || !goalDate){
-    container.innerHTML = '<div class="planner-empty">Enter a ₹ goal and a date above to see suggestions.</div>';
-    return;
-  }
-  const plan = computeGoalPlan(goalAmount, goalDate);
-  if(!plan || plan.batches.length === 0){
-    container.innerHTML = '<div class="planner-empty">No accounts will be ready before that date yet.</div>';
-    return;
-  }
-  const hasPrices = sellPrices["5EUR"] || sellPrices["5USD"] || sellPrices["10EUR"] || sellPrices["10USD"] || sellPrices["lol"] || sellPrices["ow"];
-  const statusHtml = plan.goalMet
-    ? `<div class="goal-status met">🎯 On track — goal reached by ${fmtDate(plan.batches[plan.reachedAt].redeemDate)} (batch ${plan.reachedAt + 1}).</div>`
-    : hasPrices
-      ? `<div class="goal-status short">Short by roughly ₹${Math.max(goalAmount - plan.totalHigh, 0)}–₹${Math.max(goalAmount - plan.totalLow, 0)} by ${fmtDate(new Date(goalDate + "T00:00:00"))}. Nothing more completes before your deadline — consider raising Daily Points on a few accounts or extending your date.</div>`
-      : `<div class="goal-status short">Set your Sell Prices in Tools to see whether this goal is reachable.</div>`;
-
-  const batchesHtml = plan.batches.map((b, i) => {
-    const breakdown = Object.keys(b.counts).filter(k => b.counts[k] > 0).map(k => `${TARGET_LABELS[k]}: ${b.counts[k]}`).join(" · ");
-    const reachedTag = (plan.goalMet && i === plan.reachedAt) ? ' <span class="goal-reached-tag">🎯 Goal reached here</span>' : '';
-    const isOpen = goalPlanExpanded.has(i);
-    const accountList = [...b.items].sort((a,b2) => a.row.id - b2.row.id).map(p =>
-      `<div class="goal-account-row">${p.row.id}) ${escapeHtml(p.row.name)} <span class="goal-account-meta">${escapeHtml(p.row.server || '—')} · ${targetLabel(p.row)}</span></div>`
-    ).join("");
-    return `
-      <div class="planner-cluster">
-        <div class="planner-cluster-title">Redeem ${b.count} account${b.count !== 1 ? 's' : ''} on ${fmtDate(b.redeemDate)}${reachedTag}</div>
-        <div class="planner-breakdown">${breakdown}</div>
-        ${hasPrices ? `<div class="planner-value">≈ ₹${b.low}–₹${b.high}</div><div class="planner-cluster-sub">Running total: ≈ ₹${b.cumLow}–₹${b.cumHigh}</div>` : '<div class="planner-cluster-sub">Set sell prices in Tools to see ₹ estimates.</div>'}
-        <div class="goal-accounts-toggle" data-batchidx="${i}">${isOpen ? '▴ Hide' : '▾ Show'} accounts (${b.count})</div>
-        ${isOpen ? `<div class="goal-accounts-list">${accountList}</div>` : ''}
-      </div>
-    `;
-  }).join("");
-
-  container.innerHTML = statusHtml + batchesHtml;
 }
 
 function daysSince(dateStr){
